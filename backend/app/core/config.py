@@ -9,5 +9,5 @@ class Settings:
     SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")
     NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
     FIREBASE_SERVICE_ACCOUNT_PATH: str = os.path.join(os.getcwd(), "firebase-adminsdk.json")
-
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 settings = Settings()

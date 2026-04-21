@@ -22,11 +22,19 @@ def analyze_sentiment(text: str) -> dict:
         
     return {"label": label, "score": compound}
 
-def get_financial_news(query: str = "finance"):
+def get_financial_news(query: str = "stock market"):
     if not settings.NEWS_API_KEY:
         raise HTTPException(status_code=500, detail="NEWS_API_KEY .env dosyasında bulunamadı")
 
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&apiKey={settings.NEWS_API_KEY}"
+    # Finansal kaynaklarla sınırla, daha spesifik arama
+    url = (
+        "https://newsapi.org/v2/everything"
+        f"?q={query}"
+        "&domains=bloomberg.com,reuters.com,cnbc.com,marketwatch.com,finance.yahoo.com,ft.com,wsj.com"
+        "&language=en"
+        "&sortBy=publishedAt"
+        f"&apiKey={settings.NEWS_API_KEY}"
+    )
     response = requests.get(url)
     
     if response.status_code != 200:
