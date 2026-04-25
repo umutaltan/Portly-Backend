@@ -1,15 +1,30 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
 
-class UserCreate(BaseModel):
+
+class UserBase(BaseModel):
     email: EmailStr
+
+
+class UserCreate(UserBase):
     password: str
+    full_name: str | None = None
 
-class UserResponse(BaseModel):
+
+class UserResponse(UserBase):
     id: int
-    email: EmailStr
     balance: float
-    created_at: datetime
+    full_name: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse

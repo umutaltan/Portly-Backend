@@ -1,10 +1,15 @@
 import requests
 from fastapi import HTTPException
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.core.config import settings
 
 analyzer = SentimentIntensityAnalyzer()
+
+# Cache sistemi
+_news_cache = {"data": None, "timestamp": None, "query": None}
+_NEWS_CACHE_TTL_MINUTES = 15
+
 
 def analyze_sentiment(text: str) -> dict:
     if not text:
@@ -22,11 +27,20 @@ def analyze_sentiment(text: str) -> dict:
         
     return {"label": label, "score": compound}
 
-def get_financial_news(query: str = "stock market"):
+
+def get_financial_news(query: str = "stock market", force_refresh: bool = False):
     if not settings.NEWS_API_KEY:
         raise HTTPException(status_code=500, detail="NEWS_API_KEY .env dosyasında bulunamadı")
 
-    # Finansal kaynaklarla sınırla, daha spesifik arama
+    now = datetime.now()
+    
+    if (not force_refresh
+            and _news_cache["data"] is not None
+            and _news_cache["query"] == query
+            and _news_cache["timestamp"] is not None
+            and now - _news_cache["timestamp"] < timedelta(minutes=_NEWS_CACHE_TTL_MINUTES)):
+        return _news_cache["data"]
+
     url = (
         "https://newsapi.org/v2/everything"
         f"?q={query}"
@@ -61,5 +75,10 @@ def get_financial_news(query: str = "stock market"):
             "sentiment_label": sentiment["label"],
             "sentiment_score": sentiment["score"]
         })
-        
+    
+    # Cache'e kaydet
+    _news_cache["data"] = news_list
+    _news_cache["timestamp"] = now
+    _news_cache["query"] = query
+    
     return news_list

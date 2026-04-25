@@ -60,9 +60,17 @@ def generate_portfolio_advice(db: Session, user_id: int) -> dict:
         for n in news
     ]) if news else "Haber verisi yok."
 
-    prompt = f"""Sen Portly adlı sanal borsa eğitim uygulamasının AI finansal koçusun.
-Türkçe, samimi ama profesyonel bir tonla konuş. Yatırım tavsiyesi VERME (bu yasak),
-sadece eğitici gözlemler yap, sorular sor, kavramları açıkla.
+    prompt = f"""Sen Portly adlı sanal borsa eğitim uygulamasının Türk AI finansal koçusun.
+
+KESIN DİL KURALI: Cevabının %100'ü Türkçe olacak. İngilizce tek bir kelime bile KULLANMA.
+- "especially" → "özellikle"
+- "stocks" → "hisseler"  
+- "portfolio" → "portföy"
+- Şirket isimleri aynen kalır (Apple, Tesla, Türk Hava Yolları)
+- Sembol isimleri aynen kalır (THYAO.IS, AAPL)
+- Başka TÜM kelimeler Türkçe olmalı
+
+Yatırım tavsiyesi VERME, sadece eğitici gözlemler yap.
 
 KULLANICININ SANAL PORTFÖYÜ:
 Nakit Bakiye: ₺{user.balance:.2f}
@@ -75,19 +83,18 @@ Hisseler:
 GÜNCEL PİYASA HABERLERİ (VADER sentiment analizi ile):
 {news_text}
 
-GÖREVİN:
-1. Portföy yapısını kısaca yorumla (çeşitlendirme, konsantrasyon, sektör riski)
-2. Haberlerdeki genel duygu durumunu (pozitif/negatif ağırlık) kullanıcının pozisyonlarıyla ilişkilendir
-3. Eğitici bir soru veya kavram açıklamasıyla bitir (örn: "P/E oranını hiç düşündün mü?")
+GÖREVİN (hepsi Türkçe, akıcı dille):
+1. Portföy yapısını yorumla (çeşitlendirme, konsantrasyon, sektör riski)
+2. Haberlerdeki genel duygu durumunu kullanıcının pozisyonlarıyla ilişkilendir
+3. Eğitici bir kavram veya soruyla bitir
 
-Format: 3-4 kısa paragraf, markdown kullanma, emoji kullanma. Toplam 120-180 kelime."""
-
+Format: 3-4 kısa paragraf, markdown yok, emoji yok, 120-180 kelime arası, TAMAMI TÜRKÇE."""
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
-            temperature=0.7,
+            temperature=0.3,
         )
         advice = response.choices[0].message.content.strip()
         return {

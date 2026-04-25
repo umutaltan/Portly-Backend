@@ -40,3 +40,57 @@ def get_stock_data(symbol: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Veri alınamadı: {str(e)}")
+    # Geçmiş veri için ayrı cache (daha uzun TTL, çünkü değişmez)
+_history_cache = {}
+_HISTORY_CACHE_TTL_SECONDS = 300  # 5 dakika
+
+
+def get_stock_history(symbol: str, period: str = "1mo"):
+    """
+    Hisse senedinin geçmiş fiyat verilerini döndürür.
+    Flutter tarafında fl_chart için uygun format: [{date, close}].
+    """
+    symbol = symbol.upper()
+    cache_key = f"{symbol}:{period}"
+    now = datetime.now()
+
+    # Cache kontrolü
+    if cache_key in _history_cache:
+        data, ts = _history_cache[cache_key]
+        if now - ts < timedelta(seconds=_HISTORY_CACHE_TTL_SECONDS):
+            return data
+
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period)
+
+        if hist.empty:
+            raise HTTPException(status_code=404, detail=f"Geçmiş veri bulunamadı: {symbol}")
+
+        # DataFrame'i Flutter'ın kolay işleyeceği formata dönüştür
+        history = []
+        for date, row in hist.iterrows():
+            history.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "timestamp": int(date.timestamp()),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]),
+            })
+
+        result = {
+            "symbol": symbol,
+            "period": period,
+            "data": history,
+            "data_points": len(history),
+        }
+
+        _history_cache[cache_key] = (result, now)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Geçmiş veri alınamadı: {str(e)}")
