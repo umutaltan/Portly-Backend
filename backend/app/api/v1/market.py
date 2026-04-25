@@ -1,12 +1,12 @@
 from fastapi import APIRouter
 from app.services import market_data_service
 
+
 router = APIRouter()
 
 @router.get("/price/{symbol}")
 def get_price(symbol: str):
     return market_data_service.get_stock_data(symbol)
-from typing import Optional
 
 @router.get("/history/{symbol}")
 def get_price_history(symbol: str, period: str = "1mo"):
@@ -15,3 +15,10 @@ def get_price_history(symbol: str, period: str = "1mo"):
     period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
     """
     return market_data_service.get_stock_history(symbol=symbol, period=period)
+@router.get("/search")
+def search_stocks(q: str, limit: int = 10):
+    """
+    Hisse/şirket arar. BIST, NYSE, NASDAQ, kripto destekli.
+    Örnek: /api/v1/market/search?q=garanti
+    """
+    return market_data_service.search_symbols(query=q, limit=limit)

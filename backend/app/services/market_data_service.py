@@ -94,3 +94,71 @@ def get_stock_history(symbol: str, period: str = "1mo"):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Geçmiş veri alınamadı: {str(e)}")
+    # Arama için cache
+_search_cache = {}
+_SEARCH_CACHE_TTL_MINUTES = 30
+
+
+def search_symbols(query: str, limit: int = 10):
+    """
+    yfinance Search API'sini kullanarak hisse/şirket arar.
+    BIST, NYSE, NASDAQ, kripto - hepsi tek endpoint'ten.
+    """
+    query = query.strip()
+    if len(query) < 1:
+        return []
+
+    cache_key = query.lower()
+    now = datetime.now()
+
+    # Cache kontrolü (rate limit'e takılmamak için)
+    if cache_key in _search_cache:
+        data, ts = _search_cache[cache_key]
+        if now - ts < timedelta(minutes=_SEARCH_CACHE_TTL_MINUTES):
+            return data[:limit]
+
+    try:
+        # yfinance Search - en yeni API (yfinance >= 0.2.50)
+        search = yf.Search(query, max_results=limit, news_count=0)
+        quotes = search.quotes  # Liste of dicts
+
+        results = []
+        for q in quotes:
+            symbol = q.get("symbol", "")
+            if not symbol:
+                continue
+
+            # Market sınıflandırması
+            exchange = q.get("exchange", "").upper()
+            quote_type = q.get("quoteType", "").upper()
+
+            if symbol.endswith(".IS"):
+                market = "BIST"
+            elif quote_type == "CRYPTOCURRENCY":
+                market = "CRYPTO"
+            elif exchange in ("NMS", "NASDAQ"):
+                market = "NASDAQ"
+            elif exchange in ("NYQ", "NYSE"):
+                market = "NYSE"
+            elif quote_type == "ETF":
+                market = "ETF"
+            elif quote_type == "INDEX":
+                market = "ENDEKS"
+            else:
+                market = exchange or "DİĞER"
+
+            results.append({
+                "symbol": symbol,
+                "name": q.get("shortname") or q.get("longname") or symbol,
+                "market": market,
+                "type": quote_type,
+            })
+
+        # Cache'e kaydet
+        _search_cache[cache_key] = (results, now)
+        return results[:limit]
+
+    except Exception as e:
+        # API hatası durumunda boş liste dön (frontend fallback'a düşer)
+        print(f"Search error for '{query}': {e}")
+        return []

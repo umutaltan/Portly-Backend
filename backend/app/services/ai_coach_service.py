@@ -9,6 +9,22 @@ client = Groq(api_key=settings.GROQ_API_KEY)
 
 
 def generate_portfolio_advice(db: Session, user_id: int) -> dict:
+    # Davranışsal profili de prompt'a ekle
+    from app.services import behavioral_finance_service
+    behavior = behavioral_finance_service.analyze_user_behavior(db, user_id)
+    
+    if behavior.get("has_enough_data"):
+        persona = behavior["persona"]
+        behavior_text = (
+            f"\n\nDAVRANIŞSAL FİNANS PROFİLİ:\n"
+            f"Karakter: {persona['title']}\n"
+            f"Açıklama: {persona['description']}\n"
+            f"Disposition Effect Skoru: {behavior['disposition_effect']['score']} (kazancı erken satma, kaybı tutma)\n"
+            f"Overconfidence Skoru: {behavior['overconfidence']['score']} (aşırı işlem)\n"
+            f"Loss Aversion Skoru: {behavior['loss_aversion']['score']} (zararı kabul etmeme)"
+        )
+    else:
+        behavior_text = ""
     """Kullanıcının portföyünü, PnL'ini ve güncel haber sentiment'ını analiz edip 
     Türkçe kişisel yorum üretir. Llama 3.3 70B kullanır."""
     
@@ -82,11 +98,13 @@ Hisseler:
 
 GÜNCEL PİYASA HABERLERİ (VADER sentiment analizi ile):
 {news_text}
+{behavior_text}
 
 GÖREVİN (hepsi Türkçe, akıcı dille):
 1. Portföy yapısını yorumla (çeşitlendirme, konsantrasyon, sektör riski)
 2. Haberlerdeki genel duygu durumunu kullanıcının pozisyonlarıyla ilişkilendir
 3. Eğitici bir kavram veya soruyla bitir
+4. Davranışsal profilini gözlemleyerek (varsa) yatırımcı kişiliğine uygun eğitici öneride bulun
 
 Format: 3-4 kısa paragraf, markdown yok, emoji yok, 120-180 kelime arası, TAMAMI TÜRKÇE."""
     try:

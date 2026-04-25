@@ -14,3 +14,4 @@ class User(Base):
 
     transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
     portfolio = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")

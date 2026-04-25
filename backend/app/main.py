@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.api.v1 import auth, market, trading, portfolio as portfolio_api, news , coach
+from app.api.v1 import auth, market, trading, portfolio as portfolio_api, news, coach, behavior, stress, chat
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,9 @@ app.include_router(trading.router, prefix="/api/v1/trading", tags=["trading"])
 app.include_router(portfolio_api.router, prefix="/api/v1/portfolio", tags=["portfolio"])
 app.include_router(news.router, prefix="/api/v1/news", tags=["news"])
 app.include_router(coach.router, prefix="/api/v1/coach", tags=["coach"])
+app.include_router(behavior.router, prefix="/api/v1/behavior", tags=["behavior"])
+app.include_router(stress.router, prefix="/api/v1/stress", tags=["stress"])
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 
 
 
