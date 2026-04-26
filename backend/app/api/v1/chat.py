@@ -10,13 +10,6 @@ router = APIRouter()
 
 @router.post("/send")
 async def send_message(payload: ChatMessageCreate, db: Session = Depends(get_db)):
-    """
-    Kullanıcı mesajını alır, AI cevabını SSE stream olarak döner.
-    Frontend bu endpoint'e POST atar ve response'u stream olarak okur.
-
-    Her event: {"data": "<token>"}
-    Akış bittiğinde: {"event": "done", "data": ""}
-    """
     if not payload.message.strip():
         raise HTTPException(status_code=400, detail="Boş mesaj gönderilemez")
 
@@ -25,6 +18,9 @@ async def send_message(payload: ChatMessageCreate, db: Session = Depends(get_db)
 
     async def event_generator():
         try:
+            # Hemen "thinking" event'i gönder ki UI feedback versin
+            yield {"event": "thinking", "data": ""}
+            
             for token in chat_service.stream_chat_response(
                 db=db, user_id=payload.user_id, user_message=payload.message
             ):
@@ -33,8 +29,16 @@ async def send_message(payload: ChatMessageCreate, db: Session = Depends(get_db)
         except Exception as e:
             yield {"event": "error", "data": str(e)}
 
-    return EventSourceResponse(event_generator())
-
+    return EventSourceResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        ping=20,
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+    )
 
 @router.get("/history/{user_id}")
 def get_history(user_id: int, db: Session = Depends(get_db)):

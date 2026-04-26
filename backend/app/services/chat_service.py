@@ -36,25 +36,43 @@ def build_user_context(db: Session, user_id: int) -> str:
     total_value = 0.0
     total_cost = 0.0
 
-    for h in holdings:
-        try:
-            md = market_data_service.get_stock_data(h.symbol)
-            cp = md["current_price"]
-            cost = h.average_cost * h.quantity
-            val = cp * h.quantity
-            total_cost += cost
-            total_value += val
-            pnl = val - cost
-            pnl_pct = (pnl / cost * 100) if cost > 0 else 0
-            portfolio_lines.append(
-                f"- {h.symbol}: {h.quantity:.0f} lot, "
-                f"maliyet ₺{h.average_cost:.2f}, güncel ₺{cp:.2f}, "
-                f"PnL: {pnl:+.2f} TL ({pnl_pct:+.2f}%)"
-            )
-        except Exception:
-            portfolio_lines.append(
-                f"- {h.symbol}: {h.quantity:.0f} lot, maliyet ₺{h.average_cost:.2f} (güncel fiyat alınamadı)"
-            )
+    # 1. Portföy — paralel fiyat çekme
+    holdings = db.query(Portfolio).filter(Portfolio.user_id == user_id).all()
+    portfolio_lines = []
+    total_value = 0.0
+    total_cost = 0.0
+
+    if holdings:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _fetch_one(h):
+            try:
+                md = market_data_service.get_stock_data(h.symbol)
+                return (h, md["current_price"], None)
+            except Exception as e:
+                return (h, None, str(e))
+
+        # Tüm hisseleri PARALEL çek - 6 hisse 1-2 sn'de biter, sıralı 10+ sn'di
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            results = list(ex.map(_fetch_one, holdings))
+
+        for h, cp, err in results:
+            if err is None and cp is not None:
+                cost = h.average_cost * h.quantity
+                val = cp * h.quantity
+                total_cost += cost
+                total_value += val
+                pnl = val - cost
+                pnl_pct = (pnl / cost * 100) if cost > 0 else 0
+                portfolio_lines.append(
+                    f"- {h.symbol}: {h.quantity:.0f} lot, "
+                    f"maliyet ₺{h.average_cost:.2f}, güncel ₺{cp:.2f}, "
+                    f"PnL: {pnl:+.2f} TL ({pnl_pct:+.2f}%)"
+                )
+            else:
+                portfolio_lines.append(
+                    f"- {h.symbol}: {h.quantity:.0f} lot, maliyet ₺{h.average_cost:.2f} (güncel fiyat alınamadı)"
+                )
 
     portfolio_text = "\n".join(portfolio_lines) if portfolio_lines else "Henüz hisse pozisyonu yok, tüm varlık nakit."
     total_pnl = total_value - total_cost
