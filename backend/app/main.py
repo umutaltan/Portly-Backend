@@ -2,6 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.api.v1 import auth, market, trading, portfolio as portfolio_api, news, coach, behavior, stress, chat
+import time
+import uuid
+from fastapi import Request
+from loguru import logger
+import sys
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 Base.metadata.create_all(bind=engine)
 
@@ -40,3 +48,32 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# Renkli, JSON-uyumlu log formatı
+logger.remove()
+logger.add(
+    sys.stdout,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[request_id]}</cyan> | <level>{message}</level>",
+    level="INFO",
+)
+logger.configure(extra={"request_id": "-"})
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())[:8]
+    start = time.time()
+
+    with logger.contextualize(request_id=request_id):
+        logger.info(f"→ {request.method} {request.url.path}")
+        response = await call_next(request)
+        elapsed = (time.time() - start) * 1000
+        status_emoji = "✓" if response.status_code < 400 else "✗"
+        logger.info(f"← {status_emoji} {response.status_code} ({elapsed:.0f}ms)")
+
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

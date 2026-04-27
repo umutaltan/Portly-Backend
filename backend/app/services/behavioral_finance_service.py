@@ -35,19 +35,31 @@ def _calculate_disposition_effect(transactions: list) -> dict:
                 holdings[sym]["qty"] = 0.0
                 holdings[sym]["total_cost"] = 0.0
 
-    # Hâlâ elde tutulanların kâr/zararını say
-    for sym, h in holdings.items():
-        if h["qty"] <= 0:
-            continue
-        try:
-            avg_cost = h["total_cost"] / h["qty"]
-            current = market_data_service.get_stock_data(sym)["current_price"]
+    open_positions = [(sym, h) for sym, h in holdings.items() if h["qty"] > 0]
+
+    if open_positions:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _fetch_price(item):
+            sym, h = item
+            try:
+                avg_cost = h["total_cost"] / h["qty"]
+                current = market_data_service.get_stock_data(sym)["current_price"]
+                return (current, avg_cost)
+            except Exception:
+                return None
+
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            results = list(ex.map(_fetch_price, open_positions))
+
+        for r in results:
+            if r is None:
+                continue
+            current, avg_cost = r
             if current > avg_cost:
                 paper_gains += 1
             elif current < avg_cost:
                 paper_losses += 1
-        except Exception:
-            continue
 
     pgr = realized_gains / (realized_gains + paper_gains) if (realized_gains + paper_gains) > 0 else 0
     plr = realized_losses / (realized_losses + paper_losses) if (realized_losses + paper_losses) > 0 else 0

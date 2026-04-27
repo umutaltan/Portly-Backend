@@ -8,6 +8,10 @@ from app.schemas.user_schema import UserCreate
 from app.core.database import get_db
 from app.core.config import settings
 import bcrypt
+import pyotp
+import qrcode
+import base64
+from io import BytesIO
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
@@ -51,7 +55,27 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+def generate_2fa_secret(user_email: str) -> dict:
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=user_email, issuer_name="Portly")
 
+    # QR code oluştur (base64 olarak frontend'e gönder)
+    qr = qrcode.make(uri)
+    buf = BytesIO()
+    qr.save(buf, format='PNG')
+    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    return {
+        "secret": secret,
+        "qr_code": f"data:image/png;base64,{qr_b64}",
+        "uri": uri,
+    }
+
+
+def verify_2fa(secret: str, code: str) -> bool:
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),

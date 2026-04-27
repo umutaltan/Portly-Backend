@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 from app.core.database import get_db
@@ -18,9 +18,8 @@ async def send_message(payload: ChatMessageCreate, db: Session = Depends(get_db)
 
     async def event_generator():
         try:
-            # Hemen "thinking" event'i gönder ki UI feedback versin
             yield {"event": "thinking", "data": ""}
-            
+
             for token in chat_service.stream_chat_response(
                 db=db, user_id=payload.user_id, user_message=payload.message
             ):
@@ -39,6 +38,7 @@ async def send_message(payload: ChatMessageCreate, db: Session = Depends(get_db)
             "Connection": "keep-alive",
         }
     )
+
 
 @router.get("/history/{user_id}")
 def get_history(user_id: int, db: Session = Depends(get_db)):
